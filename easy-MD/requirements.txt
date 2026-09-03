@@ -1,0 +1,8 @@
+PyYAML==6.0.3
+numpy==2.4.6
+rdkit==2026.3.3
+pdbfixer==1.12.0
+OpenMM==8.5.2
+biopython==1.87
+Pillow==12.2.0
+plip==3.0.0
