@@ -14,35 +14,38 @@
   run_status.json
   metadata.json
   docking/
-    receptor.pdbqt
-    ligand.pdbqt
     config.txt
-    best_pose.pdbqt
     docking.log
     scores.csv
-    runs/
+    runs/run1/{docked.pdbqt,log.txt}
+    runs/run2/{docked.pdbqt,log.txt}
+    runs/run3/{docked.pdbqt,log.txt}
   structure/
     original.pdb
     protein_clean.pdb
+    receptor.pdbqt
     ligand.sdf
+    ligand.pdbqt
     best_pose.pdb
+    best_pose.pdbqt
     complex_for_visualization.pdb
   analysis/
     interaction_summary.txt
     interaction_summary.json
     interaction_master.json
     plip_report.xml
-    interaction_2D.png
-    interaction_2D.svg
-    interaction_2D.emf
+    visualizer_data.pkl
   visualization/
     interaction_visualization.pse
     interaction_visualization.pml
     visualization_metadata.json
 ```
 
-The run root may retain preparation logs, the `.easy-md-run` safety marker,
-and intermediate files needed to resume a failed stage.
+Run the shared Vina configuration from `docking/`. It points to the prepared
+inputs in `../structure/`; seed folders contain only the pose outputs and
+logs. Structure preparation and PLIP use temporary working directories.
+The run root also contains the `.easy-md-run` safety marker. The standard
+workflow does not produce 2D interaction diagrams.
 
 ## Stage status
 
@@ -83,5 +86,11 @@ serials are retained only for traceability and are never the sole locator.
 ## Visualization metadata
 
 `visualization_metadata.json` records the native attempt, selected source,
-PLIP interaction count, PyMOL marker count, PSE byte size, object inventory,
+PLIP interaction count, actual saved distance segment count, PSE byte size, object inventory,
 validation checks, and any native/fallback errors.
+
+The session contains `Protein`, `Contact_Residues`, `Ligand`, and
+`Interactions`. Each can be toggled independently. Empty contact and
+interaction objects appear as empty groups when applicable. The PSE opens
+directly; to rerender the fallback PML, set PyMOL's working directory to
+`visualization/` and run `@interaction_visualization.pml`.

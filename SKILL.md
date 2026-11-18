@@ -58,8 +58,10 @@ For the default name-only request, run:
 PYTHON <skill-root>/scripts/pipeline.py --config CONFIG prepare
   --protein PROTEIN
   --ligand LIGAND
-  --output-root OUTPUT_ROOT
 ```
+
+The pipeline creates the run directory under `paths.output_root` in
+`config.yaml`. Pass `--output-root DIR` when the user specifies another location.
 
 The command normalizes the identities, selects and downloads structures,
 prepares receptor and ligand, builds the box, writes `run_status.json`, and
@@ -87,7 +89,7 @@ PYTHON <skill-root>/scripts/pipeline.py execute
 ```
 
 The command performs repeated Vina runs, global pose ranking, optional
-redocking, PLIP analysis, 2D rendering, PLIP-native PyMOL rendering, strict
+redocking, PLIP analysis, PLIP-native PyMOL rendering, strict
 fallback rendering when required, structured packaging, and validation.
 
 Each stage records one of `PENDING`, `RUNNING`, `AWAITING_CONFIRMATION`,
@@ -102,8 +104,14 @@ PYTHON <skill-root>/scripts/pipeline.py validate --run-dir RUN_DIR
 ```
 
 Require non-empty docking artifacts, `interaction_summary.txt`,
-`interaction_master.json`, PML, and PSE. Require the PLIP interaction count to
-match the hidden `_easy_md_interaction_*` PyMOL marker count.
+`interaction_master.json`, PML, and PSE. Reopen the PSE and require exactly
+four named objects, the requested dash settings, and saved distance endpoints
+that match the PLIP report. Water bridges have two line segments per interaction.
+
+To reorganize trusted local results already completed, use
+`scripts/repackage.py OLD_RUN [OLD_RUN ...]`. This writes a new result directory
+under `paths.output_root` (or `--output-root`), reuses Vina and PLIP results,
+and leaves the original directory intact.
 
 ## References
 

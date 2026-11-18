@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,23 @@ def _copy(source: Path, target: Path) -> None:
     shutil.copy2(source, target)
 
 
+def write_vina_input_paths(source: Path, target: Path, prefix: str) -> None:
+    """Keep the approved box and Vina parameters, changing only input locations."""
+    inputs = {"receptor": "receptor.pdbqt", "ligand": "ligand.pdbqt"}
+    lines = []
+    found = set()
+    for line in source.read_text(encoding="utf-8").splitlines():
+        key = line.partition("=")[0].strip()
+        if key in inputs:
+            lines.append(f"{key} = {prefix}{inputs[key]}")
+            found.add(key)
+        else:
+            lines.append(line)
+    if found != inputs.keys():
+        raise ValueError(f"Missing receptor or ligand input in {source}")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _layout(run_dir: Path) -> dict[str, Path]:
     return {
         "run": run_dir,
@@ -108,6 +126,10 @@ def _verified_modified_site(pdb_path: Path, ligand_name: str, title: str) -> tup
 def prepare(args: argparse.Namespace) -> int:
     config_path = Path(args.config or SKILL_ROOT / "config.yaml").resolve()
     config = load_config(config_path)
+    output_root = args.output_root or configured_path(config, "output_root")
+    if not output_root:
+        print("Set paths.output_root in the config or pass --output-root.", file=sys.stderr)
+        return 2
     python = configured_path(config, "python") or sys.executable
 
     identity = normalize_protein(args.protein, args.species)
@@ -130,7 +152,7 @@ def prepare(args: argparse.Namespace) -> int:
     else:
         ligand_metadata = search_ligand(args.ligand)
 
-    paths = _create_run(Path(args.output_root).resolve(), gene, args.ligand)
+    paths = _create_run(Path(output_root).resolve(), gene, args.ligand)
     run_dir, status_path = paths["run"], paths["status"]
     update_stage(status_path, "acquisition", "RUNNING")
     try:
@@ -140,7 +162,7 @@ def prepare(args: argparse.Namespace) -> int:
         if args.protein_pdb:
             pdb_id = (args.pdb_id or Path(args.protein_pdb).stem).upper()
             selected_entry = enrich_entry(pdb_id) if len(pdb_id) == 4 else {}
-            original_pdb = run_dir / f"{pdb_id}.pdb"
+            original_pdb = paths["structure"] / "original.pdb"
             _copy(Path(args.protein_pdb).resolve(), original_pdb)
             ranked: list[dict[str, Any]] = []
             protein_source = "user/MCP supplied PDB"
@@ -178,7 +200,7 @@ def prepare(args: argparse.Namespace) -> int:
             selected_entry = usable[pdb_id]
             if not selected_entry.get("easy_md", {}).get("is_human"):
                 raise RuntimeError("No evidence that the recommended PDB is human; provide --pdb-id explicitly")
-            original_pdb = run_dir / f"{pdb_id}.pdb"
+            original_pdb = paths["structure"] / "original.pdb"
             download_pdb(pdb_id, original_pdb)
             protein_source = "RCSB REST fallback"
 
@@ -186,14 +208,14 @@ def prepare(args: argparse.Namespace) -> int:
         verified_site = _verified_modified_site(original_pdb, args.ligand, selected_title)
 
         if args.ligand_sdf:
-            ligand_sdf = run_dir / "ligand_input.sdf"
+            ligand_sdf = paths["structure"] / "ligand_input.sdf"
             _copy(Path(args.ligand_sdf).resolve(), ligand_sdf)
             ligand_source = "user/MCP supplied SDF"
         elif args.smiles:
             ligand_sdf = None
             ligand_source = "user SMILES"
         else:
-            ligand_sdf = run_dir / "ligand_input.sdf"
+            ligand_sdf = paths["structure"] / "ligand_input.sdf"
             download_ligand_sdf(ligand_metadata.get("cid") or args.ligand, ligand_sdf)
             ligand_source = "PubChem PUG REST fallback"
 
@@ -206,10 +228,13 @@ def prepare(args: argparse.Namespace) -> int:
         return 1
 
     update_stage(status_path, "preparation", "RUNNING")
+    prep_work = None
     try:
+        prep_work = tempfile.TemporaryDirectory(prefix=".prepare-", dir=run_dir)
+        scratch = Path(prep_work.name)
         protein_command = [
             python, str(SCRIPTS / "protein_prepare.py"), str(original_pdb),
-            "--pdb-id", pdb_id, "--work-dir", str(run_dir), "--config", str(config_path),
+            "--pdb-id", pdb_id, "--work-dir", str(scratch), "--config", str(config_path),
         ]
         effective_chain = args.chain
         if verified_site:
@@ -217,39 +242,44 @@ def prepare(args: argparse.Namespace) -> int:
             effective_chain = effective_chain or verified_site[1]
         if effective_chain:
             protein_command.extend(["--chain", effective_chain])
-        _run(protein_command, run_dir, run_dir / "protein_prepare.log")
+        _run(protein_command, run_dir, paths["docking"] / "protein_prepare.log")
 
         ligand_command = [
             python, str(SCRIPTS / "ligand_prepare.py"),
-            "--name", args.ligand, "--work-dir", str(run_dir), "--config", str(config_path),
+            "--name", args.ligand, "--work-dir", str(scratch), "--config", str(config_path),
         ]
         if ligand_sdf:
             ligand_command.extend(["--sdf", str(ligand_sdf)])
         else:
             ligand_command.insert(2, args.smiles)
-        _run(ligand_command, run_dir, run_dir / "ligand_prepare.log")
+        _run(ligand_command, run_dir, paths["docking"] / "ligand_prepare.log")
 
         box_command = [
             python, str(SCRIPTS / "box_prepare.py"), "--pdb", str(original_pdb),
-            "--work-dir", str(run_dir), "--config", str(config_path), "--json",
+            "--work-dir", str(scratch), "--config", str(config_path), "--json",
+            "--output", str(paths["docking"] / "config.txt"),
+            "--receptor", "../structure/receptor.pdbqt", "--ligand", "../structure/ligand.pdbqt",
         ]
         if args.center:
             box_command.extend(["--center", *[str(value) for value in args.center]])
             if args.size:
                 box_command.extend(["--size", *[str(value) for value in args.size]])
-        elif not (run_dir / "native_ligand_info.txt").is_file():
+        elif not (scratch / "native_ligand_info.txt").is_file():
             raise RuntimeError(
                 "No co-crystal ligand was found. Provide experimentally supported --center and --size; blind docking is not automatic."
             )
-        box_result = _run(box_command, run_dir, run_dir / "box_prepare.log")
+        box_result = _run(box_command, run_dir, paths["docking"] / "box_prepare.log")
         box_json = json.loads(box_result.stdout[box_result.stdout.find("{"):])
 
-        _copy(original_pdb, paths["structure"] / "original.pdb")
-        _copy(run_dir / "protein_clean.pdb", paths["structure"] / "protein_clean.pdb")
-        _copy(run_dir / "ligand.sdf", paths["structure"] / "ligand.sdf")
-        _copy(run_dir / "receptor.pdbqt", paths["docking"] / "receptor.pdbqt")
-        _copy(run_dir / "ligand.pdbqt", paths["docking"] / "ligand.pdbqt")
-        _copy(run_dir / "config.txt", paths["docking"] / "config.txt")
+        for name in ("protein_clean.pdb", "ligand.sdf", "receptor.pdbqt", "ligand.pdbqt"):
+            _copy(scratch / name, paths["structure"] / name)
+        if (scratch / "native_ligand_info.txt").is_file():
+            _copy(scratch / "native_ligand_info.txt", paths["docking"] / "native_ligand_info.txt")
+        if ligand_sdf and ligand_sdf.read_bytes() == (paths["structure"] / "ligand.sdf").read_bytes():
+            ligand_sdf.unlink()
+            update_stage(status_path, "acquisition", "SUCCESS", artifacts=[
+                str(original_pdb), str(paths["structure"] / "ligand.sdf"),
+            ])
 
         metadata = {
             "schema_version": 1,
@@ -281,8 +311,8 @@ def prepare(args: argparse.Namespace) -> int:
         atomic_write_json(paths["metadata"], metadata)
         update_stage(status_path, "preparation", "SUCCESS", artifacts=[
             str(paths["structure"] / "protein_clean.pdb"),
-            str(paths["docking"] / "receptor.pdbqt"),
-            str(paths["docking"] / "ligand.pdbqt"),
+            str(paths["structure"] / "receptor.pdbqt"),
+            str(paths["structure"] / "ligand.pdbqt"),
             str(paths["docking"] / "config.txt"),
         ])
         update_stage(status_path, "docking", "AWAITING_CONFIRMATION")
@@ -290,6 +320,9 @@ def prepare(args: argparse.Namespace) -> int:
         update_stage(status_path, "preparation", "FAILED", error=str(exc))
         traceback.print_exc()
         return 1
+    finally:
+        if prep_work is not None:
+            prep_work.cleanup()
 
     print("DOCKING CONFIRMATION")
     print(f"Protein: {gene} ({metadata['protein']['official_name']}) | Organism: {metadata['protein']['organism']}")
@@ -310,6 +343,78 @@ def prepare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _redock(paths: dict[str, Path], python: str, config_path: Path) -> None:
+    docking = paths["docking"]
+    with tempfile.TemporaryDirectory(prefix=".redock-", dir=paths["run"]) as tmp:
+        scratch = Path(tmp)
+        (scratch / WORK_MARKER).write_text("easy-md redocking scratch\n", encoding="utf-8")
+        _copy(paths["structure"] / "receptor.pdbqt", scratch / "receptor.pdbqt")
+        write_vina_input_paths(docking / "config.txt", scratch / "config.txt", "")
+        _run([
+            python, str(SCRIPTS / "redocking.py"), "--pdb", str(paths["structure"] / "original.pdb"),
+            "--native-info", str(docking / "native_ligand_info.txt"),
+            "--work-dir", str(scratch), "--config", str(config_path),
+        ], scratch, docking / "redocking.log")
+        for name in ("redocking_info.json", "redocking_result.txt", "redock/docked_native.pdbqt"):
+            source = scratch / name
+            if source.is_file():
+                _copy(source, docking / "redocking" / source.name)
+
+
+def render_interactions(paths: dict[str, Path], analysis_result: dict, config: dict) -> list[str]:
+    master_path = Path(analysis_result["master"])
+    complex_pdb = Path(analysis_result["complex"])
+    pse = paths["visualization"] / "interaction_visualization.pse"
+    pml = paths["visualization"] / "interaction_visualization.pml"
+    report_path = paths["visualization"] / "visualization_metadata.json"
+    visual_metadata: dict[str, Any] = {"interaction_count": analysis_result["interaction_count"]}
+    try:
+        generate_pml(master_path, complex_pdb, pml, pse)
+        pymol_exe = configured_path(config, "pymol")
+        pymol_python = configured_path(config, "pymol_python")
+        if not pymol_python and pymol_exe:
+            pymol_python = str(Path(pymol_exe).with_name("python.exe"))
+        if not pymol_python:
+            raise RuntimeError("A PyMOL Python runtime is required")
+        timeout = int(config.get("interaction", {}).get("pymol_timeout", 120))
+        min_bytes = int(config.get("validation", {}).get("min_pse_bytes", 1024))
+
+        def check():
+            return validate_visualization(master_path, pse, pml, pymol_python, min_bytes, timeout,
+                                          complex_pdb=complex_pdb)
+
+        try:
+            import plip
+            native = render_native(
+                Path(analysis_result["visualizer_data"]), master_path, pse, pymol_python,
+                Path(plip.__file__).resolve().parent.parent, timeout, complex_pdb=complex_pdb,
+            )
+        except Exception as exc:
+            native = {"success": False, "error": str(exc)}
+        visual_metadata["native_attempt"] = native
+        validation = check() if native.get("success") else None
+        if validation and validation["success"]:
+            source = "plip_native"
+        else:
+            if validation:
+                visual_metadata["native_validation"] = validation
+            pse.unlink(missing_ok=True)
+            fallback = run_pymol(pymol_python, pml, timeout)
+            if fallback.returncode != 0:
+                raise RuntimeError(f"PyMOL fallback failed: {fallback.stderr}")
+            source = "custom_pml_fallback"
+            validation = check()
+        visual_metadata.update(source=source, validation=validation)
+        if not validation["success"]:
+            raise RuntimeError(f"Visualization validation failed: {validation}")
+        return [str(pse), str(pml)]
+    except Exception as exc:
+        visual_metadata["error"] = str(exc)
+        raise
+    finally:
+        atomic_write_json(report_path, visual_metadata)
+
+
 def execute(args: argparse.Namespace) -> int:
     run_dir = Path(args.run_dir).resolve()
     paths = _layout(run_dir)
@@ -320,31 +425,25 @@ def execute(args: argparse.Namespace) -> int:
     config_path = Path(metadata["config"])
     config = load_config(config_path)
     python = configured_path(config, "python") or sys.executable
-    seeds = [int(value) for value in config.get("docking", {}).get("seeds", [42, 2024, 8888])]
+    settings = config.get("docking", {})
+    seeds = [int(value) for value in settings.get("seeds", [42, 2024, 8888])]
+    seeds = seeds[:int(settings.get("num_runs", len(seeds)))]
     obabel = configured_path(config, "obabel") or "obabel"
 
     update_stage(paths["status"], "docking", "RUNNING")
     try:
         _run([
-            python, str(SCRIPTS / "docking_run.py"), "--config", "config.txt",
-            "--work-dir", str(run_dir), "--skill-config", str(config_path), "--json",
+            python, str(SCRIPTS / "docking_run.py"), "--config", str(paths["docking"] / "config.txt"),
+            "--work-dir", str(run_dir), "--skill-config", str(config_path), "--structured", "--json",
         ], run_dir, paths["docking"] / "docking.log")
-        ranking = rank_poses(run_dir, seeds, obabel)
-        _copy(run_dir / "best_pose.pdbqt", paths["docking"] / "best_pose.pdbqt")
-        _copy(run_dir / "scores.csv", paths["docking"] / "scores.csv")
-        _copy(run_dir / "best_pose.pdb", paths["structure"] / "best_pose.pdb")
-        runs_dir = paths["docking"] / "runs"
-        for run in range(1, len(seeds) + 1):
-            shutil.copytree(run_dir / f"run{run}", runs_dir / f"run{run}", dirs_exist_ok=True)
+        ranking = rank_poses(paths["docking"], seeds, runs_dir=paths["docking"] / "runs",
+                             pose_dir=paths["structure"])
         if metadata.get("redock"):
-            _run([
-                python, str(SCRIPTS / "redocking.py"), "--pdb", str(paths["structure"] / "original.pdb"),
-                "--work-dir", str(run_dir), "--config", str(config_path),
-            ], run_dir, paths["docking"] / "redocking.log")
+            _redock(paths, python, config_path)
         metadata["pose_ranking"] = ranking
         atomic_write_json(paths["metadata"], metadata)
         update_stage(paths["status"], "docking", "SUCCESS", artifacts=[
-            str(paths["docking"] / "best_pose.pdbqt"),
+            str(paths["structure"] / "best_pose.pdbqt"),
             str(paths["docking"] / "docking.log"), str(paths["docking"] / "scores.csv"),
         ])
     except Exception as exc:
@@ -357,26 +456,11 @@ def execute(args: argparse.Namespace) -> int:
         best = metadata["pose_ranking"]["best"]
         analysis_result = analyze(
             paths["structure"] / "protein_clean.pdb",
-            paths["docking"] / "best_pose.pdbqt",
+            paths["structure"] / "best_pose.pdbqt",
             paths["structure"] / "ligand.sdf",
             metadata["protein"]["gene_symbol"], metadata["ligand"]["name"],
             float(best["affinity"]), paths["structure"], paths["analysis"], obabel,
         )
-        two_d = subprocess.run([
-            python, str(SCRIPTS / "interaction_2d.py"),
-            "--json", analysis_result["summary_json"],
-            "--sdf", str(paths["structure"] / "ligand.sdf"),
-            "--complex", analysis_result["complex"],
-            "--output-dir", str(paths["analysis"]),
-            "--protein-name", metadata["protein"]["gene_symbol"],
-            "--ligand-name", metadata["ligand"]["name"],
-            "--ligand-resname", analysis_result["ligand_resname"],
-            "--best-affinity", str(best["affinity"]),
-        ], capture_output=True, text=True, cwd=str(run_dir))
-        (paths["analysis"] / "interaction_2d.log").write_text(
-            two_d.stdout + "\n" + two_d.stderr, encoding="utf-8"
-        )
-        analysis_result["two_d_status"] = "SUCCESS" if two_d.returncode == 0 else "FAILED"
         metadata["interaction"] = analysis_result
         atomic_write_json(paths["metadata"], metadata)
         update_stage(paths["status"], "interaction", "SUCCESS", artifacts=[
@@ -388,55 +472,16 @@ def execute(args: argparse.Namespace) -> int:
         return 1
 
     update_stage(paths["status"], "visualization", "RUNNING")
-    visual_metadata: dict[str, Any] = {}
     try:
-        master_path = Path(analysis_result["master"])
-        pse = paths["visualization"] / "interaction_visualization.pse"
-        pml = paths["visualization"] / "interaction_visualization.pml"
-        generate_pml(master_path, Path(analysis_result["complex"]), pml, pse)
-        pymol_exe = configured_path(config, "pymol")
-        pymol_python = configured_path(config, "pymol_python")
-        if not pymol_python and pymol_exe:
-            pymol_python = str(Path(pymol_exe).with_name("python.exe"))
-        if not pymol_exe or not pymol_python:
-            raise RuntimeError("PyMOL executable and Python runtime are required")
-        import plip
-        plip_site = Path(plip.__file__).resolve().parent.parent
-        native = render_native(
-            Path(analysis_result["visualizer_data"]), master_path, pse,
-            pymol_python, plip_site,
-            int(config.get("interaction", {}).get("pymol_timeout", 120)),
-        )
-        source = "plip_native" if native.get("success") else "custom_pml_fallback"
-        if not native.get("success"):
-            fallback = run_pymol(pymol_exe, pml)
-            if fallback.returncode != 0:
-                raise RuntimeError(f"Native and fallback PyMOL failed: {native.get('stderr')} | {fallback.stderr}")
-        validation = validate_visualization(
-            master_path, pse, pml, pymol_python,
-            int(config.get("validation", {}).get("min_pse_bytes", 1024)),
-        )
-        if not validation["success"] and source == "plip_native":
-            fallback = run_pymol(pymol_exe, pml)
-            source = "custom_pml_fallback_after_native_validation"
-            validation = validate_visualization(master_path, pse, pml, pymol_python)
-        visual_metadata = {
-            "source": source, "native_attempt": native, "validation": validation,
-            "interaction_count": analysis_result["interaction_count"],
-        }
-        atomic_write_json(paths["visualization"] / "visualization_metadata.json", visual_metadata)
-        if not validation["success"]:
-            raise RuntimeError(f"Visualization validation failed: {validation}")
-        update_stage(paths["status"], "visualization", "SUCCESS", artifacts=[str(pse), str(pml)])
+        outputs = render_interactions(paths, analysis_result, config)
+        update_stage(paths["status"], "visualization", "SUCCESS", artifacts=outputs)
     except Exception as exc:
-        visual_metadata.setdefault("error", str(exc))
-        atomic_write_json(paths["visualization"] / "visualization_metadata.json", visual_metadata)
         update_stage(paths["status"], "visualization", "FAILED", error=str(exc))
         traceback.print_exc()
         return 1
 
     update_stage(paths["status"], "packaging", "RUNNING")
-    report = validate_run(run_dir, pymol_python)
+    report = validate_run(run_dir)
     metadata["validation"] = report
     atomic_write_json(paths["metadata"], metadata)
     if report["success"]:
@@ -447,15 +492,26 @@ def execute(args: argparse.Namespace) -> int:
     return 1
 
 
-def validate_run(run_dir: Path, pymol_python: str | None = None) -> dict[str, Any]:
+def validate_run(run_dir: Path) -> dict[str, Any]:
     paths = _layout(run_dir)
     required = [
-        paths["docking"] / "receptor.pdbqt", paths["docking"] / "ligand.pdbqt",
-        paths["docking"] / "best_pose.pdbqt", paths["docking"] / "docking.log",
+        paths["status"], paths["metadata"],
+        paths["structure"] / "receptor.pdbqt", paths["structure"] / "ligand.pdbqt",
+        paths["structure"] / "best_pose.pdbqt", paths["structure"] / "best_pose.pdb",
+        paths["structure"] / "complex_for_visualization.pdb",
+        paths["docking"] / "docking.log", paths["docking"] / "scores.csv", paths["docking"] / "config.txt",
         paths["analysis"] / "interaction_summary.txt", paths["analysis"] / "interaction_master.json",
+        paths["analysis"] / "plip_report.xml",
         paths["visualization"] / "interaction_visualization.pse",
         paths["visualization"] / "interaction_visualization.pml",
+        paths["visualization"] / "visualization_metadata.json",
     ]
+    if paths["metadata"].is_file() and paths["metadata"].stat().st_size:
+        metadata = json.loads(paths["metadata"].read_text(encoding="utf-8"))
+        docking = metadata.get("docking", {})
+        count = int(docking.get("num_runs", len(docking.get("seeds", []))))
+        required.extend(paths["docking"] / "runs" / f"run{index}" / name
+                        for index in range(1, count + 1) for name in ("log.txt", "docked.pdbqt"))
     missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
     return {"success": not missing, "missing": missing, "required_files": [str(path) for path in required]}
 
@@ -467,7 +523,24 @@ def status(args: argparse.Namespace) -> int:
 
 
 def validate_command(args: argparse.Namespace) -> int:
-    result = validate_run(Path(args.run_dir).resolve())
+    paths = _layout(Path(args.run_dir).resolve())
+    result = validate_run(paths["run"])
+    if result["success"]:
+        metadata = json.loads(paths["metadata"].read_text(encoding="utf-8"))
+        config = load_config(args.config or metadata["config"])
+        pymol_python = configured_path(config, "pymol_python")
+        if pymol_python:
+            visual = validate_visualization(
+                paths["analysis"] / "interaction_master.json",
+                paths["visualization"] / "interaction_visualization.pse",
+                paths["visualization"] / "interaction_visualization.pml", pymol_python,
+                int(config.get("validation", {}).get("min_pse_bytes", 1024)),
+                int(config.get("interaction", {}).get("pymol_timeout", 120)),
+                complex_pdb=paths["structure"] / "complex_for_visualization.pdb",
+            )
+        else:
+            visual = {"success": False, "error": "Set paths.pymol_python to validate the saved PSE."}
+        result.update(visualization=visual, success=visual["success"])
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result["success"] else 1
 
@@ -479,7 +552,7 @@ def parser() -> argparse.ArgumentParser:
     prep = commands.add_parser("prepare")
     prep.add_argument("--protein", required=True)
     prep.add_argument("--ligand", required=True)
-    prep.add_argument("--output-root", required=True)
+    prep.add_argument("--output-root", help="Override paths.output_root from the configuration.")
     prep.add_argument("--species", default="human")
     prep.add_argument("--pdb-id")
     prep.add_argument("--protein-pdb")

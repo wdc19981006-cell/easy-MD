@@ -22,6 +22,8 @@ pymol.finish_launching(["pymol", "-cq"])
 sys.path.append(r"{plip_site}")
 
 from pymol import cmd
+sys.path.insert(0, {scene_dir!r})
+from scene import create_scene, interaction_segments, match_segments, measurement_segments
 from plip.basic import config
 from plip.visualization.pymol import PyMOLVisualizer
 
@@ -53,29 +55,15 @@ vis.show_cationpi()
 vis.show_sbridges()
 vis.show_wbridges()
 vis.show_metal()
-vis.refinements()
-vis.zoom_to_ligand()
-vis.selections_cleanup()
-vis.selections_group()
-vis.additional_cleanup()
-
-for row in master.get("interactions", []):
-    point = row.get("protein_coordinate") or row.get("ligand_coordinate")
-    if not point:
-        point = row.get("ring_center", {{}}).get("protein") or row.get("charge_center", {{}}).get("protein")
-    if not point:
-        continue
-    cmd.pseudoatom("_easy_md_interaction_" + row["interaction_id"], pos=point)
-    cmd.hide("everything", "_easy_md_interaction_" + row["interaction_id"])
-
-markers = [name for name in cmd.get_names("objects") if name.startswith("_easy_md_interaction_")]
-if markers:
-    cmd.group("_easy_md_validation", " ".join(markers))
-    cmd.disable("_easy_md_validation")
+segments = [segment for name in cmd.get_names("objects")
+            for segment in measurement_segments(cmd, name)]
+if not match_segments(interaction_segments(master), segments):
+    raise ValueError("Official PLIP PyMOL distances do not match the master geometry")
+create_scene(cmd, master, {complex_pdb!r}, segments)
 cmd.save(r"{pse}")
 Path(r"{result}").write_text(json.dumps({{
     "object_names": cmd.get_names("objects"),
-    "marker_count": len(markers),
+    "segment_count": len(segments),
 }}, indent=2), encoding="utf-8")
 cmd.quit()
 '''
@@ -88,6 +76,8 @@ def render_native(
     pymol_python: str,
     plip_site: Path,
     timeout: int = 120,
+    *,
+    complex_pdb: Path,
 ) -> dict[str, object]:
     pse.parent.mkdir(parents=True, exist_ok=True)
     runner = pse.parent / "_plip_native_runner.py"
@@ -95,10 +85,11 @@ def render_native(
     runner.write_text(RUNNER.format(
         plip_site=str(plip_site), visualizer_data=str(visualizer_data),
         master=str(master), pse=str(pse), result=str(result_json),
+        scene_dir=str(Path(__file__).resolve().parent), complex_pdb=str(complex_pdb),
     ), encoding="utf-8")
     try:
         process = subprocess.run(
-            [pymol_python, str(runner)], capture_output=True, text=True,
+            [pymol_python, "-B", str(runner)], capture_output=True, text=True,
             timeout=timeout, cwd=str(pse.parent),
         )
         details = json.loads(result_json.read_text(encoding="utf-8")) if result_json.exists() else {}
@@ -110,7 +101,7 @@ def render_native(
             "pse": str(pse),
             **details,
         }
-        payload["success"] = process.returncode == 0 and pse.is_file() and pse.stat().st_size > 0
+        payload["success"] = bool(details) and process.returncode == 0 and pse.is_file() and pse.stat().st_size > 0
         return payload
     finally:
         runner.unlink(missing_ok=True)
@@ -121,6 +112,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--visualizer-data", required=True)
     parser.add_argument("--master", required=True)
+    parser.add_argument("--complex", required=True)
     parser.add_argument("--pse", required=True)
     parser.add_argument("--pymol-python", required=True)
     parser.add_argument("--plip-site", required=True)
@@ -129,7 +121,7 @@ def main() -> int:
     result = render_native(
         Path(args.visualizer_data).resolve(), Path(args.master).resolve(),
         Path(args.pse).resolve(), args.pymol_python,
-        Path(args.plip_site).resolve(), args.timeout,
+        Path(args.plip_site).resolve(), args.timeout, complex_pdb=Path(args.complex).resolve(),
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result["success"] else 1

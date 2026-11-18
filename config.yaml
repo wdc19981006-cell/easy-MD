@@ -1,6 +1,6 @@
 # easy-md v4.0
-# Machine-specific tools stay configurable here. Every mutating script must
-# also receive a dedicated --work-dir (or EASYMD_WORK_DIR).
+# Machine-specific paths stay configurable here. Compatibility scripts that
+# write files require a dedicated --work-dir (or EASYMD_WORK_DIR).
 
 paths:
   python: "C:/Python312/python.exe"
@@ -8,6 +8,7 @@ paths:
   obabel: "D:/Interaction/OpenBabel-3.1.1/obabel.exe"
   pymol: "D:/Interaction/PyMol/Scripts/pymol.exe"
   pymol_python: "D:/Interaction/PyMol/python.exe"
+  output_root: "D:/Desktop/codex-result/easy_MD"
   work_root: null
   desktop: "D:/Desktop"
 
@@ -203,10 +204,6 @@ interaction:
   plip_timeout: 120
   pymol_timeout: 120
   max_label_residues: 15
-  two_d:
-    dpi: 300
-    canvas_width: 2800
-    canvas_height: 2400
 
 validation:
   min_pse_bytes: 1024

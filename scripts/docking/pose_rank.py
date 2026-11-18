@@ -52,22 +52,27 @@ def extract_model(source: Path, mode: int, target: Path) -> None:
     target.write_text("".join(selected), encoding="utf-8")
 
 
-def rank_poses(work_dir: Path, seeds: list[int], obabel: str | None = None) -> dict[str, object]:
+def rank_poses(
+    work_dir: Path, seeds: list[int], obabel: str | None = None, *,
+    runs_dir: Path | None = None, pose_dir: Path | None = None,
+) -> dict[str, object]:
+    runs_dir = runs_dir or work_dir
+    pose_dir = pose_dir or work_dir
     poses: list[dict[str, object]] = []
     for run, seed in enumerate(seeds, 1):
-        log = work_dir / f"run{run}" / "log.txt"
+        log = runs_dir / f"run{run}" / "log.txt"
         poses.extend(parse_log(log, run, seed))
     if not poses:
         raise ValueError("No Vina score rows were found")
     poses.sort(key=lambda row: (row["affinity"], row["run"], row["mode"]))
     best = poses[0]
-    best_pdbqt = work_dir / "best_pose.pdbqt"
+    best_pdbqt = pose_dir / "best_pose.pdbqt"
     extract_model(
-        work_dir / f"run{best['run']}" / "docked.pdbqt",
+        runs_dir / f"run{best['run']}" / "docked.pdbqt",
         int(best["mode"]),
         best_pdbqt,
     )
-    best_pdb = work_dir / "best_pose.pdb"
+    best_pdb = pose_dir / "best_pose.pdb"
     if obabel:
         result = subprocess.run(
             [obabel, str(best_pdbqt), "-O", str(best_pdb)],

@@ -8,8 +8,10 @@ import json
 import os
 import pickle
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -130,19 +132,18 @@ def analyze(
     complex_pdb = structure_dir / "complex_for_visualization.pdb"
     build_complex(protein, pose_pdb, complex_pdb, resname)
 
-    mol = PDBComplex()
-    mol.output_path = str(analysis_dir.resolve()) + os.sep
-    mol.load_pdb(str(complex_pdb.resolve()))
-    mol.analyze()
-    site, interaction_set = select_site(mol, resname, "L", 1)
-
-    report = StructureReport(mol, outputprefix="plip_report")
-    report.write_xml()
     xml_path = analysis_dir / "plip_report.xml"
-    if not xml_path.is_file():
-        raise RuntimeError("PLIP did not create plip_report.xml")
-
-    master = parse_interactions(interaction_set, complex_pdb)
+    with tempfile.TemporaryDirectory(prefix=".plip-", dir=analysis_dir.resolve()) as scratch:
+        mol = PDBComplex()
+        mol.output_path = scratch + os.sep
+        mol.load_pdb(str(complex_pdb.resolve()))
+        mol.analyze()
+        site, interaction_set = select_site(mol, resname, "L", 1)
+        report = StructureReport(mol, outputprefix="plip_report")
+        report.write_xml()
+        shutil.copyfile(Path(scratch) / "plip_report.xml", xml_path)
+        master = parse_interactions(interaction_set, complex_pdb)
+        visualizer_data = VisualizerData(mol, site)
     master.update({
         "protein": protein_name,
         "ligand": ligand_name,
@@ -157,7 +158,6 @@ def analyze(
     summary_json = analysis_dir / "interaction_summary.json"
     write_reports(master, protein_name, ligand_name, affinity, summary_txt, summary_json)
 
-    visualizer_data = VisualizerData(mol, site)
     # PLIP derives pdbid from the full local path for file-based complexes.
     # PyMOL sanitizes that name while PyMOLVisualizer keeps the unsanitized
     # value, so later official methods cannot find the protein object.  Store a

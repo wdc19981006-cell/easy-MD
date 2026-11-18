@@ -11,6 +11,7 @@ Output: run1/docked.pdbqt, run2/docked.pdbqt, run3/docked.pdbqt,
 """
 
 import os, sys, re, math, json, subprocess, argparse, time
+from pathlib import Path
 
 from common import configured_path, enter_work_dir, get_config, load_config
 
@@ -144,6 +145,8 @@ def main():
     parser.add_argument("--num-runs", type=int)
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--skill-config", help="Path to easy-md config.yaml")
+    parser.add_argument("--structured", action="store_true",
+                        help="Use docking/config.txt, shared inputs, and docking/runs/runN outputs")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print commands without executing")
     parser.add_argument("--json", action="store_true",
@@ -172,40 +175,39 @@ def main():
     if args.cpu is not None:
         threads = args.cpu
 
-    # Step A (sync): create directories and verify
-    setup_run_dirs(args.config, num_runs)
-
-    # Step B: launch Vina
-    if args.dry_run:
-        for i, seed in enumerate(seeds, 1):
-            command = [
-                args.vina,
-                "--config",
-                "config.txt",
-                "--out",
-                "docked.pdbqt",
-                "--seed",
-                str(seed),
-                "--cpu",
-                str(threads),
-            ]
-            print(f"cwd=run{i} command={json.dumps(command)}")
-        return
+    if args.structured:
+        config_file = Path(args.config).resolve()
+        if not config_file.is_file():
+            parser.error(f"Vina config not found: {config_file}")
+        docking = config_file.parent
+        run_dirs = [docking / "runs" / f"run{i}" for i in range(1, num_runs + 1)]
+        if not args.dry_run:
+            for folder in run_dirs:
+                folder.mkdir(parents=True, exist_ok=True)
+    else:
+        run_dirs = [Path(folder).resolve() for folder in setup_run_dirs(args.config, num_runs)]
+        docking = Path.cwd()
 
     # Launch all runs in background (via subprocess)
     procs = []
-    for i, seed in enumerate(seeds, 1):
-        log_file = os.path.join(f'run{i}', 'log.txt')
+    for i, (seed, folder) in enumerate(zip(seeds, run_dirs), 1):
+        cwd = docking if args.structured else folder
+        cfg = config_file.name if args.structured else "config.txt"
         cmd = [
-            args.vina, '--config', 'config.txt', '--out', 'docked.pdbqt',
+            args.vina, '--config', cfg, '--out', str((folder / "docked.pdbqt").relative_to(cwd)),
             '--seed', str(seed), '--cpu', str(threads),
         ]
+        if args.dry_run:
+            print(f"cwd={cwd} command={json.dumps(cmd)}")
+            continue
         print(f"Launching Run {i} (seed={seed})...")
-        with open(log_file, 'w') as log_f:
+        with (folder / "log.txt").open("w") as log_f:
             proc = subprocess.Popen(
-                cmd, cwd=f'run{i}',
+                cmd, cwd=cwd,
                 stdout=log_f, stderr=subprocess.STDOUT)
             procs.append((i, seed, proc))
+    if args.dry_run:
+        return
 
     # Wait for all to complete
     failed_runs = []
@@ -225,9 +227,8 @@ def main():
     # Parse results
     all_scores = []
     all_tables = {}
-    for i, seed in enumerate(seeds, 1):
-        log_path = os.path.join(f'run{i}', 'log.txt')
-        table = parse_vina_log(log_path)
+    for i, (seed, folder) in enumerate(zip(seeds, run_dirs), 1):
+        table = parse_vina_log(folder / "log.txt")
         if table:
             all_tables[i] = table
             best = table[0][1]
@@ -249,7 +250,7 @@ def main():
     report_results(all_scores, stats, all_tables)
 
     # Save stats
-    with open('docking_stats.json', 'w') as f:
+    with (docking / "docking_stats.json").open("w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2)
     print("\nSaved docking_stats.json")
 

@@ -18,7 +18,7 @@ from docking.pose_rank import rank_poses
 from pdb_selection import rank_pdb_entries
 from pipeline import _verified_modified_site
 from protein.normalize import normalize_protein
-from visualization.pymol_generator import generate_pml
+from visualization.scene import interaction_segments
 
 
 class NormalizeTests(unittest.TestCase):
@@ -137,30 +137,16 @@ class InteractionSchemaTests(unittest.TestCase):
 
 
 class VisualizationTests(unittest.TestCase):
-    def test_fallback_uses_explicit_pseudoatom_coordinates(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            master = {
-                "interaction_count": 1,
-                "ligand_site": {"resname": "ASR", "chain": "L", "residue_number": 1},
-                "interactions": [{
-                    "interaction_id": "I0001", "interaction_type": "hydrogen_bond",
-                    "protein_chain": "A", "protein_residue_number": "10",
-                    "protein_coordinate": [0, 0, 0], "ligand_coordinate": [1, 1, 1],
-                    "ring_center": {"protein": None, "ligand": None},
-                    "charge_center": {"protein": None, "ligand": None},
-                }],
-            }
-            master_path = root / "master.json"
-            master_path.write_text(json.dumps(master), encoding="utf-8")
-            complex_path = root / "complex.pdb"
-            complex_path.write_text("END\n", encoding="utf-8")
-            pml, pse = root / "view.pml", root / "view.pse"
-            result = generate_pml(master_path, complex_path, pml, pse)
-            text = pml.read_text(encoding="utf-8")
-        self.assertEqual(result["rendered_interaction_count"], 1)
-        self.assertIn("pseudoatom _easy_md_p_I0001, pos=[0,0,0]", text)
-        self.assertNotIn("distance hbond_1, complex and resi", text)
+    def test_water_bridge_draws_through_reported_water(self):
+        protein, water, ligand = [0, 0, 0], [1, 1, 1], [2, 0, 0]
+        row = {
+            "interaction_id": "I0001", "interaction_type": "water_bridge",
+            "protein_coordinate": protein, "ligand_coordinate": ligand, "water_coordinate": water,
+        }
+        self.assertEqual(interaction_segments({"interactions": [row]}), [(protein, water), (water, ligand)])
+        del row["water_coordinate"]
+        with self.assertRaisesRegex(ValueError, "I0001"):
+            interaction_segments({"interactions": [row]})
 
 
 class StatusTests(unittest.TestCase):
