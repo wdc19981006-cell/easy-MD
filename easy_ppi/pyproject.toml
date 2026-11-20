@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "easy-ppi"
+version = "0.1.0"
+description = "Audited experimental-structure protein-protein interface analysis and LightDock docking"
+requires-python = ">=3.10"
+readme = "README.zh-CN.md"
+dynamic = ["dependencies"]
+
+[project.scripts]
+easy-ppi = "easy_ppi.__main__:main"
+
+[tool.setuptools]
+packages = ["easy_ppi"]
+package-dir = {"easy_ppi" = "."}
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.package-data]
+easy_ppi = ["*.md", "*.txt", "*.yml", "*.json"]

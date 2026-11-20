@@ -1,6 +1,8 @@
-# easy-MD 分子对接 Skill
+# easy-MD / easy-PPI
 
-面向 Windows 的蛋白质–小分子自动化对接工作流，供 Claude Code、Codex 等可访问本地文件并执行命令的智能体使用。
+面向 Windows 的蛋白质–小分子自动化对接工作流，以及独立的实验结构蛋白–蛋白互作模块，供 Claude Code、Codex 等可访问本地文件并执行命令的智能体使用。
+
+下方首次使用流程针对 easy-MD 小分子对接；蛋白互作请阅读 [easy-PPI 使用说明](easy_ppi/README.zh-CN.md)。
 
 ## 公开下载
 
@@ -73,4 +75,27 @@
 - [输出规范](references/outputs.md)。
 - `tests/`：单元和集成测试；使用本机已配置的 Python 执行 `-B -m unittest discover -s tests -v`。
 
-本项目针对蛋白质–小分子对接，不用于蛋白质–蛋白质对接或分子动力学。标准 Vina 不模拟共价键形成；对接分数不能直接代表实验亲和力、药效或作用机制。
+`SKILL.md` 与 `scripts/` 针对蛋白质–小分子对接；蛋白质–蛋白质互作使用独立的 `easy_ppi/`。两者均不执行分子动力学。标准 Vina 不模拟共价键形成；对接分数不能直接代表实验亲和力、药效或作用机制。
+
+## easy-PPI：实验结构蛋白互作
+
+只接受有实验来源的 PDB/mmCIF，不接入 AlphaFold、Boltz 或其他序列到结构预测模型。输入可为蛋白名称、PDB ID 或本地文件；检查物种、链、结构质量、缺失残基和生物学组装。已有可用实验复合物时直接分析实际界面；只有独立实验结构时才使用 LightDock 对接。
+
+- Gemmi/pdb-tools 准备结构并保留原始文件和残基编号映射。
+- PDBe Arpeggio 分类跨链接触；FreeSASA 计算 SASA/BSA；PRODIGY 提供明确标注的经验亲和力预测。
+- 有实验参考时用 DockQ 验证；无参考时跳过，数值为 null。
+- PyMOL 会话分层显示 Protein_A、Protein_B、Interface_Residues、Interactions，作用线使用虚线。
+- 保留全部候选、参数、日志、评分及 CSV/JSON/PDB/PSE/PNG，不用程序无报错替代科学验证。
+
+依赖使用独立环境，安装步骤和 Windows 兼容性见 [easy-PPI 使用说明](easy_ppi/README.zh-CN.md)；设计、软件选择、许可证来源和两阶段验收见 [架构文档](easy_ppi/ARCHITECTURE.zh-CN.md)。
+
+**当前验证边界：**1BRS 实验界面分析通过；7,500 候选的重新对接未达到 DockQ≥0.23，保留 FAIL，不能宣称对接性能已通过验证。NRF2–KEAP1 使用 2FLU 的 NRF2 短肽–KEAP1 Kelch 实验片段分析，不代表全长构象。详见 [验证记录](easy_ppi/VALIDATION.zh-CN.md)。
+
+## 默认结果位置
+
+|流程|配置|本工作站默认输出|
+|---|---|---|
+|easy-MD 小分子对接|根目录 config.yaml → paths.output_root|D:/Desktop/codex-result/easy_MD|
+|easy-PPI 蛋白互作|easy_ppi/config.json → paths.output_root|D:/Desktop/codex-result/easy_PPI|
+
+新电脑须修改为本机绝对路径。PPI 支持 EASY_PPI_OUTPUT_ROOT / EASY_PPI_CONFIG；显式 --output 优先。配置错误时不会静默回退到项目 ppi_results。源码、计算结果、开发归档和基准数据分开保存，详见 [结果保存说明](references/result-storage.md)。

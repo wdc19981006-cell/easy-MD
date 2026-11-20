@@ -96,3 +96,9 @@ Git Bash 中 Python 的执行路径可写成 `/c/.../python.exe`；传给 Window
 ## 时间预期
 
 首次安装时间与单次计算时间分别说明。已有环境的原工作站配置预计约 5–30 分钟，不能据此承诺所有电脑和组合均在 6 分钟完成；网络、CPU、盒尺寸、配体自由度和参数都会影响时间。当前未在全新 Windows 电脑上完成自动安装全过程验证。
+
+## 8. 蛋白–蛋白互作与结果位置
+
+本指南前述 Vina/PLIP 安装和 prepare/execute 命令用于蛋白–小分子任务。蛋白–蛋白互作使用独立的 [easy-PPI 模块](easy_ppi/README.zh-CN.md)，先阅读其依赖、实验结构要求和科学验证边界，不要把 PPI 依赖装进原 Vina 环境。
+
+本工作站小分子结果位于 D:/Desktop/codex-result/easy_MD，蛋白互作结果位于 D:/Desktop/codex-result/easy_PPI。两者分别配置；在新机器上必须替换为本机绝对路径。正式结果、基准和调试记录的组织方式见 [结果保存说明](references/result-storage.md)。GitHub 不含运行结果、软件环境或本机迁移清单。

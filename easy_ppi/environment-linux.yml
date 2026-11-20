@@ -1,0 +1,10 @@
+name: easy-ppi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - openbabel>=3.1
+  - pymol-open-source
+  - pip:
+      - -r requirements.txt

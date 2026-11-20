@@ -11,3 +11,14 @@ runs/
 results/
 .public-release-*/
 .verification-tmp/
+
+# easy-PPI environments, builds and scientific output
+.ppi-venv/
+.ppi-tools/
+.ppi-*.log
+ppi_results/
+*.egg-info/
+easy_ppi/build/
+easy_ppi/dist/
+.github-upload-*/
+references/result-location-map.json
