@@ -104,6 +104,9 @@ class PipelineIntegrationTests(unittest.TestCase):
                 return {"success": True, "segment_count": 0}
 
             with (
+                # This is a fully mocked orchestration test. Importing a real
+                # PLIP installation would make it depend on the workstation.
+                patch.dict(sys.modules, {"plip": SimpleNamespace(__file__=str(ROOT / "tests" / "mock_plip.py"))}),
                 patch.object(pipeline, "_run", side_effect=fake_run),
                 patch.object(pipeline, "analyze", side_effect=fake_analyze),
                 patch.object(pipeline, "generate_pml", side_effect=fake_pml),

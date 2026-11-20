@@ -1,0 +1,210 @@
+# Example only: copy to ignored config.local.yaml and configure actual paths.
+# easy-md v4.0
+# Machine-specific paths stay configurable here. Compatibility scripts that
+# write files require a dedicated --work-dir (or EASYMD_WORK_DIR).
+
+paths:
+  python: "C:/path/to/workflow/python.exe"
+  vina: "C:/path/to/vina.exe"
+  obabel: "C:/path/to/obabel.exe"
+  pymol: "C:/path/to/PyMOL/Scripts/pymol.exe"
+  pymol_python: "C:/path/to/PyMOL/python.exe"
+  output_root: "D:/Desktop/codex-result/easy_MD"
+  work_root: null
+  desktop: "D:/Desktop"
+
+docking:
+  exhaustiveness: 32
+  num_modes: 9
+  energy_range: 3
+  num_runs: 3
+  seeds:
+    - 42
+    - 2024
+    - 8888
+  cpu_leave_free: 1
+  expected_runtime: "typically 5-30 minutes on this workstation; CPU and box dependent"
+
+acquisition:
+  pdb_candidates: 15
+  request_timeout: 30
+
+box:
+  padding: 8.0
+  min_size: 22.0
+  max_size: 30.0
+  blind_padding: 10.0
+
+ligand:
+  num_conformers: 10
+  prune_rms_thresh: 0.5
+  random_seed: 42
+  ph: 7.4
+
+protein:
+  ph: 7.4
+  metal_proximity_cutoff: 10.0
+
+hetatm:
+  water_names:
+    - "HOH"
+    - "WAT"
+    - "H2O"
+    - "DOD"
+
+  buffer_names:
+    - "PEG"
+    - "GOL"
+    - "EDO"
+    - "SO4"
+    - "PO4"
+    - "ACT"
+    - "EOH"
+    - "MPD"
+    - "PG4"
+    - "PGE"
+    - "PG0"
+    - "BOG"
+    - "OCT"
+    - "DMS"
+    - "DMF"
+    - "DMSO"
+    - "IPA"
+    - "BU1"
+    - "BU2"
+    - "BU3"
+    - "PX4"
+    - "1PE"
+    - "2PE"
+    - "PE3"
+    - "TRS"
+    - "BME"
+    - "CIT"
+    - "ACY"
+    - "AZI"
+    - "BCT"
+    - "BEN"
+    - "CAC"
+    - "CDL"
+    - "CLR"
+    - "CPS"
+    - "DIO"
+    - "DTD"
+    - "ETF"
+    - "FMT"
+    - "IMD"
+    - "IOD"
+    - "LDA"
+    - "MES"
+    - "MLA"
+    - "MRD"
+    - "MYR"
+    - "N8E"
+    - "NA"
+    - "NO3"
+    - "P6G"
+    - "PE8"
+    - "PGO"
+    - "PTY"
+    - "SDS"
+    - "SIN"
+    - "SPD"
+    - "SPK"
+    - "TAR"
+    - "TAS"
+    - "TCE"
+    - "TMA"
+    - "URE"
+    - "XPE"
+    - "NAG"
+    - "MAN"
+    - "AKR"
+
+  metal_names:
+    - "MG"
+    - "ZN"
+    - "FE"
+    - "MN"
+    - "CA"
+    - "NA"
+    - "K"
+    - "CO"
+    - "NI"
+    - "CU"
+    - "CD"
+    - "HG"
+    - "PT"
+    - "AU"
+    - "AG"
+    - "SR"
+    - "BA"
+    - "CS"
+    - "RB"
+    - "LI"
+
+  cofactor_names:
+    - "FAD"
+    - "NAD"
+    - "NAP"
+    - "NDP"
+    - "HEM"
+    - "HEME"
+    - "FMN"
+    - "COA"
+    - "PLP"
+    - "TPP"
+    - "SAM"
+    - "SAH"
+    - "FES"
+    - "SF4"
+    - "F3S"
+    - "CLF"
+    - "BCL"
+    - "BCB"
+    - "BPB"
+    - "CLA"
+    - "PHO"
+    - "LDA"
+    - "MQ7"
+    - "MQ8"
+    - "MQ9"
+    - "U10"
+    - "PLM"
+    - "OLC"
+    - "OLB"
+    - "LHG"
+    - "LMN"
+    - "UND"
+    - "COH"
+
+pdb_scoring:
+  xray: 3
+  resolution_le_2_0: 3
+  resolution_le_2_5: 2
+  resolution_le_3_0: 1
+  co_crystal_ligand: 3
+  relevant_co_crystal_ligand: 4
+  binding_site_defined: 2
+  active_site_evidence: 2
+  human_protein: 2
+  recent_deposition: 1
+  recent_deposition_year: 2015
+  penalty_missing_gt_5pct: -2
+  penalty_missing_gt_10pct: -3
+  penalty_mutations: -2
+  penalty_no_ligand: -2
+  penalty_non_xray: -4
+
+redocking:
+  rmsd_validated: 2.0
+  rmsd_borderline: 3.0
+  seed: 42
+
+interaction:
+  lig_chain: "L"
+  plip_timeout: 120
+  pymol_timeout: 120
+  max_label_residues: 15
+
+validation:
+  min_pse_bytes: 1024

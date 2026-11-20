@@ -12,6 +12,9 @@
 
 从仓库目录开始工作，让智能体明确读取 `SKILL.md`，即可按其步骤执行。若要在其他项目中复用，再按所用客户端的技能安装方式，将整个目录安装为名为 `easy-md` 的技能；单独复制 `SKILL.md` 会缺少脚本和配置。
 
+正式分享和安装只使用 Public easy-MD；Private easy-md-test 用于开发验证，不代表稳定发布。
+开发者另读 [CONTRIBUTING.md](CONTRIBUTING.md)，为每个 checkout 安装提交检查；发布机制见 [RELEASE_PROCESS.md](RELEASE_PROCESS.md)。
+
 ## 2. 第一次会检查和安装什么
 
 这不是自带科学软件的便携安装包，也没有一键安装脚本。README 中的首次配置指令会让智能体检查、安装和配置，具体安装方法取决于电脑上已有的 Python 和科学软件。
@@ -41,6 +44,11 @@
 - `desktop` / `work_root`：按本机情况调整；每个实际任务使用独立目录。
 
 在执行任务前保存配置，并将选定的结果目录告知用户。不要用系统目录、用户主目录或源码目录本身作为单次任务工作目录。
+
+仓库另提供 `config.example.yaml` 和 `easy_ppi/config.example.json`。
+个人配置推荐复制为被忽略的 `config.local.yaml` / `easy_ppi/config.local.json`，不要提交到 GitHub。
+Vina 在命令中传入 `--config` 的实际绝对路径；PPI 使用 `EASY_PPI_CONFIG` 指向个人配置。
+已有 `config.yaml` / `easy_ppi/config.json` 为兼容的分发示例，本次仓库整理不更改它们或现有工作站输出路径。
 
 ## 4. 检查环境
 

@@ -1,0 +1,64 @@
+name: Repository checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check tree and new commit history
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -eu
+          "$pythonLocation/bin/python" tools/repository_guard.py --ref HEAD
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != '0000000000000000000000000000000000000000' ]; then
+            "$pythonLocation/bin/python" tools/repository_guard.py --range "$BASE_SHA..$HEAD_SHA"
+          fi
+      - name: Guard regression tests
+        shell: bash
+        run: '"$pythonLocation/bin/python" -B -m unittest tests.test_repository_guard -v'
+
+  vina-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test-only dependencies
+        shell: bash
+        run: '"$pythonLocation/bin/python" -m pip install numpy pyyaml requests biopython'
+      - name: Vina unit and mocked integration tests
+        shell: bash
+        run: '"$pythonLocation/bin/python" -B -m unittest tests.test_core tests.test_integration -v'
+
+  ppi-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install separate PPI test-only dependencies
+        shell: bash
+        run: '"$pythonLocation/bin/python" -m pip install numpy==1.26.4 gemmi==0.7.5 scipy biopython requests pytest'
+      - name: PPI unit and synthetic integration tests
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        shell: bash
+        run: '"$pythonLocation/bin/python" -B -m pytest easy_ppi/tests -q -p no:cacheprovider'

@@ -1,5 +1,17 @@
 # easy-MD repository guidance
 
+## Development and release repositories
+
+Public `wdc19981006-cell/easy-MD` is the only released/shared Skill.
+Develop and test in Private `wdc19981006-cell/easy-md-test` (renamed from easy-md-skill).
+This workstation's source root uses `origin` for the test repository and `release` for the public repository; default pushes go to origin.
+Read CONTRIBUTING.md and RELEASE_PROCESS.md before source commits or publication.
+Install versioned hooks with the configured Python and tools/install_hooks.py; inspect the staged tree and outgoing commits with tools/repository_guard.py.
+Never commit structures, molecular renderings, sessions, trajectories, raw archives/logs, environments, credentials or personal configurations, including renamed/embedded structures or LFS pointers.
+Keep redacted method/error records and CSV/JSON metrics under development/ only in the test repository. Real run data stays in the existing desktop result roots.
+Promote only explicitly reviewed stable changes through source-linked commits and a public PR; preserve both scientific workflows and distinguish software tests from scientific validation.
+Do not rewrite history, delete the historical result branch, force push, move results or rerun completed calculations during repository maintenance.
+
 Read `README.md`, `NEW_USER_GUIDE.md`, and `SKILL.md` before configuring or running this workflow. The repository root is the skill root; resolve scripts relative to it.
 
 For a new user, check the operating system and actual Python environment first. This workflow targets Windows. The executable and output paths in `config.yaml` are examples from the original workstation: configure real local paths before invoking the pipeline. Do not assume the original author's programs or bio-server MCP are installed. Use bundled REST acquisition adapters when the MCP tools are unavailable.

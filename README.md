@@ -33,6 +33,13 @@ easy-md/                         Skill 根目录
 
 小分子任务仍按原流程准备并确认具体 Vina 参数；蛋白互作读取 [PPI 工作流](references/ppi-workflow.md)。下方首次配置指令针对小分子程序，PPI 依赖单独配置，见 [easy-PPI 使用说明](easy_ppi/README.zh-CN.md)。
 
+## 正式发布与开发测试
+
+- **唯一正式分享的 Skill**：[easy-MD](https://github.com/wdc19981006-cell/easy-MD)（Public），版本见 [VERSION](VERSION) 与 [CHANGELOG.md](CHANGELOG.md)。
+- **开发与测试**：[easy-md-test](https://github.com/wdc19981006-cell/easy-md-test)（Private，由原 easy-md-skill 保留历史重命名）。新算法、调试、失败分析、脱敏运行记录和指标摘要在此维护。
+- 稳定改动经测试和审核后，通过可追溯提交与正式 PR 发布；不自动整树覆盖或同步失败实验代码。见 [贡献约定](CONTRIBUTING.md) 和 [发布流程](RELEASE_PROCESS.md)。
+- 结构、PSE、渲染图、原始结果、环境与凭据均保留本地。提交前安装仓库 hooks，并运行检查；`.gitignore` 不会清除历史文件。
+
 ## 公开下载
 
 - 仓库：<https://github.com/wdc19981006-cell/easy-MD>
