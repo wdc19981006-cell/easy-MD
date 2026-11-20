@@ -1,8 +1,37 @@
-# easy-MD / easy-PPI
+# easy-MD：分子对接与蛋白互作 Skill
 
 面向 Windows 的蛋白质–小分子自动化对接工作流，以及独立的实验结构蛋白–蛋白互作模块，供 Claude Code、Codex 等可访问本地文件并执行命令的智能体使用。
 
-下方首次使用流程针对 easy-MD 小分子对接；蛋白互作请阅读 [easy-PPI 使用说明](easy_ppi/README.zh-CN.md)。
+**一个 easy-md Skill，包含两个独立程序。** 根目录 [SKILL.md](SKILL.md) 负责按输入类型选择流程；程序、依赖、配置和输出分别管理。
+
+|任务|程序位置|计算与分析|默认结果位置|
+|---|---|---|---|
+|蛋白–小分子对接|`scripts/`|AutoDock Vina + PLIP|`D:/Desktop/codex-result/easy_MD`|
+|蛋白–蛋白互作|`easy_ppi/`|实验复合物优先；必要时 LightDock；Arpeggio/FreeSASA/PRODIGY/DockQ|`D:/Desktop/codex-result/easy_PPI`|
+
+```text
+easy-md/                         Skill 根目录
+├─ SKILL.md                      统一入口：选择两类任务
+├─ agents/openai.yaml            技能名称和触发提示
+├─ scripts/                      小分子对接程序
+├─ config.yaml                   小分子配置
+├─ easy_ppi/                     蛋白互作程序
+│  ├─ config.json                蛋白互作配置
+│  ├─ README.zh-CN.md            使用说明
+│  ├─ ARCHITECTURE.zh-CN.md      架构与验收
+│  └─ VALIDATION.zh-CN.md        已执行验证及局限
+└─ references/
+   ├─ vina-workflow.md           小分子工作流规则
+   ├─ ppi-workflow.md            蛋白互作工作流规则
+   └─ result-storage.md          结果目录说明
+```
+
+调用示例：
+
+- 小分子：`使用 $easy-md，准备 ROCK2 与 Belumosudil 的分子对接。`
+- 蛋白互作：`使用 $easy-md，分析 NRF2 与 KEAP1 的实验结构互作，优先已有实验复合物。`
+
+小分子任务仍按原流程准备并确认具体 Vina 参数；蛋白互作读取 [PPI 工作流](references/ppi-workflow.md)。下方首次配置指令针对小分子程序，PPI 依赖单独配置，见 [easy-PPI 使用说明](easy_ppi/README.zh-CN.md)。
 
 ## 公开下载
 

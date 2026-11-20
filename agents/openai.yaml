@@ -1,4 +1,4 @@
 interface:
   display_name: "easy-MD"
-  short_description: "Automated protein-ligand docking and PLIP visualization"
-  default_prompt: "Use $easy-md to prepare a protein-ligand docking run and pause for confirmation before Vina."
+  short_description: "Protein-ligand docking and experimental protein PPI"
+  default_prompt: "Use $easy-md to select and run the appropriate protein-ligand or experimental protein-protein workflow for my inputs."

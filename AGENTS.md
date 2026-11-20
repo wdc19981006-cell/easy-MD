@@ -27,6 +27,6 @@ The local-only `references/result-location-map.json` (not distributed on GitHub)
 
 ## Workflow boundaries
 
-Keep the Vina workflow and the experimental-structure easy-PPI workflow independent. Follow the existing `SKILL.md` when running protein–small-molecule docking. Preserve scientific failure reports and reference-free DockQ skips. Unit-test temporary files may use the test runner's temporary directories.
+Keep the Vina workflow and the experimental-structure easy-PPI workflow independent. Use the root `SKILL.md` to select the workflow and read only its relevant reference. Preserve scientific failure reports and reference-free DockQ skips. Unit-test temporary files may use the test runner's temporary directories.
 
-For protein-protein tasks, read `easy_ppi/README.zh-CN.md`, `easy_ppi/ARCHITECTURE.zh-CN.md`, and `easy_ppi/VALIDATION.zh-CN.md`. Use the independent environment and Arpeggio backend. The Vina-only skill does not govern PPI analysis. Do not claim the failed 1BRS redocking benchmark passed. On other machines configure both output roots to real absolute paths first.
+For protein-protein tasks, read `easy_ppi/README.zh-CN.md`, `easy_ppi/ARCHITECTURE.zh-CN.md`, and `easy_ppi/VALIDATION.zh-CN.md`. Use the independent environment and Arpeggio backend. The root `SKILL.md` routes both task types: read `references/vina-workflow.md` for protein-small-molecule work and `references/ppi-workflow.md` for protein-protein work. Vina-specific preparation, PLIP classification and confirmation commands do not apply to PPI analysis. Do not claim the failed 1BRS redocking benchmark passed. On other machines configure both output roots to real absolute paths first.

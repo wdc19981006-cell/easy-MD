@@ -1,5 +1,7 @@
 # easy-PPI v0.1
 
+easy-PPI 是根目录 `easy-md` Skill 的蛋白互作程序。统一入口 [SKILL.md](../SKILL.md) 按输入类型选择流程，蛋白互作规则见 [ppi-workflow.md](../references/ppi-workflow.md)；也可直接使用本模块 CLI。小分子程序仍位于 `scripts/`，两者保持独立。
+
 easy-MD 旁的独立蛋白–蛋白模块，只接受具有实验来源的 PDB/mmCIF。与原 `scripts/` 中的 Vina/PLIP 流程、依赖和配置独立。设计、软件许可证来源和验收标准见 [ARCHITECTURE.zh-CN.md](ARCHITECTURE.zh-CN.md)。
 
 ## 能力

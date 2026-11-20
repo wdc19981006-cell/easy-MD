@@ -1,5 +1,7 @@
 # 新用户首次使用指南
 
+本仓库安装为一个 `easy-md` Skill，入口 `SKILL.md` 根据任务选择两个独立程序：蛋白–小分子使用 `scripts/` 下的 Vina/PLIP；蛋白–蛋白使用 `easy_ppi/`。以下第 2–7 节是小分子流程，第 8 节说明蛋白互作入口。
+
 ## 1. 下载代码
 
 公开地址：<https://github.com/wdc19981006-cell/easy-MD>。
@@ -99,6 +101,6 @@ Git Bash 中 Python 的执行路径可写成 `/c/.../python.exe`；传给 Window
 
 ## 8. 蛋白–蛋白互作与结果位置
 
-本指南前述 Vina/PLIP 安装和 prepare/execute 命令用于蛋白–小分子任务。蛋白–蛋白互作使用独立的 [easy-PPI 模块](easy_ppi/README.zh-CN.md)，先阅读其依赖、实验结构要求和科学验证边界，不要把 PPI 依赖装进原 Vina 环境。
+本指南前述 Vina/PLIP 安装和 prepare/execute 命令用于蛋白–小分子任务。蛋白–蛋白互作也可调用 `$easy-md`，由统一入口读取 [PPI 工作流](references/ppi-workflow.md) 并使用独立的 [easy-PPI 模块](easy_ppi/README.zh-CN.md)，先阅读其依赖、实验结构要求和科学验证边界，不要把 PPI 依赖装进原 Vina 环境。
 
 本工作站小分子结果位于 D:/Desktop/codex-result/easy_MD，蛋白互作结果位于 D:/Desktop/codex-result/easy_PPI。两者分别配置；在新机器上必须替换为本机绝对路径。正式结果、基准和调试记录的组织方式见 [结果保存说明](references/result-storage.md)。GitHub 不含运行结果、软件环境或本机迁移清单。

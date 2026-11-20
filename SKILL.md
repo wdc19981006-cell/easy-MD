@@ -1,133 +1,56 @@
 ---
 name: easy-md
-description: "Run an automated Windows protein-ligand molecular docking workflow with protein/gene normalization, human PDB selection, PubChem ligand acquisition, receptor and ligand preparation, repeated AutoDock Vina runs, optional redocking, PLIP-only interaction analysis, PLIP-native PyMOL visualization with a coordinate-driven fallback, validation, and structured packaging. Use for protein-small-molecule docking requests such as 'COX-2 with Aspirin' or 'Dock ROCK2 with Belumosudil', and for inspecting, resuming, validating, or packaging this workflow. Do not use for protein-protein docking, target prediction alone, molecular dynamics, or generic non-molecular uses of docking."
+description: "Run protein-small-molecule docking with AutoDock Vina/PLIP, or protein-protein interface analysis and LightDock docking from experimental structures with easy-PPI. Use for tasks such as ROCK2 with Belumosudil or NRF2 with KEAP1, and for inspecting, validating or packaging either workflow. Excludes sequence-to-structure prediction, molecular dynamics and target prediction alone."
 ---
 
 # easy-md
 
-Run a reproducible protein-small-molecule docking workflow on Windows. Resolve
-all paths relative to this file and read `config.yaml` before invoking scripts.
+One skill with two independent scientific workflows. Resolve `<skill-root>`
+relative to this `SKILL.md`; choose the workflow before checking dependencies,
+acquiring structures or running commands.
 
-## Non-negotiable rules
+## Select the workflow
 
-- Use PLIP as the sole interaction classifier.
-- Never let PyMOL or a custom distance cutoff infer hydrogen bonds,
-  hydrophobic contacts, pi interactions, salt bridges, or halogen bonds.
-- Prefer PLIP `VisualizerData` plus the official `PyMOLVisualizer`; use the
-  generated coordinate-driven PML only when native rendering fails.
-- Do not run Vina or redocking until the user has seen and explicitly approved
-  the resolved protein, PDB, ligand, binding-site source, box, seeds,
-  exhaustiveness, output directory, and expected runtime.
-- Do not silently run blind docking. If no relevant native ligand exists,
-  require experimentally supported `--center` and `--size` values.
-- Disclose covalent-mechanism limitations before confirmation. Standard Vina
-  does not model bond formation, reaction paths, or acyl transfer; a verified
-  covalent residue may locate a pocket but does not make the protocol covalent.
-- Do not overwrite a non-empty result directory or install dependencies without
-  explicit permission.
+| Request | Program | Required workflow reference |
+| --- | --- | --- |
+| Protein plus small molecule, e.g. ROCK2–Belumosudil | AutoDock Vina, `scripts/` | [Vina workflow](references/vina-workflow.md) |
+| Two proteins or a protein plus a protein-derived peptide, e.g. NRF2–KEAP1 | easy-PPI, `easy_ppi/` | [PPI workflow](references/ppi-workflow.md) |
+| Inspect, resume, validate or package an existing run | Use the program that created the run | Read its workflow reference |
 
-## Preflight
+Determine partner identity and molecular type; two names alone do not establish
+that both are proteins. Ask only when identity or task type remains ambiguous.
+For an existing run, use its metadata: Vina uses `run_status.json`, while PPI
+uses `run.json`. Read only the relevant workflow reference and its linked
+details. Do not run a scientific calculation merely to answer a status request.
 
-Run:
+## Shared constraints
 
-```text
-CONFIG=<skill-root>/config.yaml
-PYTHON=<config paths.python>
-PYTHON <skill-root>/scripts/preflight.py --config CONFIG --json
-```
+- Keep program code, dependency environments, preparation methods, interaction
+  classifiers and configurations independent. Vina uses PLIP; PPI uses PDBe
+  Arpeggio. Do not apply Vina ligand preparation or its confirmation CLI to PPI.
+- Prefer callable bio-server tools for PDB/PubChem acquisition. Normalize protein
+  names to gene identity first; do not use the known-broken `get_pdb_info` tool.
+  When unavailable, disclose use of the selected program's REST adapters.
+- Use real local executable paths. Install missing dependencies within the
+  user's authorization and preserve existing environments and configurations.
+- Save actual calculations outside the source repository; never overwrite an
+  existing nonempty result directory. Preserve raw inputs, numbering maps,
+  parameters, candidates, scores, logs and validation evidence.
+- Report stage failures and scientific limits. Program exit status, file
+  integrity and scientific validity are separate conclusions. Never fabricate
+  reference-based validation or interpret docking scores as experimental proof.
 
-Continue core docking only when Python, Vina, OpenBabel, and core Python
-modules pass. Report PLIP/PyMOL failures as stage-specific capability failures.
+## Configuration and result locations
 
-## MCP-first acquisition
+| Program | Configuration | Original workstation default |
+| --- | --- | --- |
+| Vina | `config.yaml` → `paths.output_root` | `D:/Desktop/codex-result/easy_MD` |
+| easy-PPI | `easy_ppi/config.json` → `paths.output_root` | `D:/Desktop/codex-result/easy_PPI` |
 
-When the `bio-server` tools are callable, use them first for PDB and PubChem
-search/download and pass the resulting files to `pipeline.py` with
-`--protein-pdb`, `--pdb-id`, and `--ligand-sdf`. Normalize common protein names
-to a gene symbol before PDB search. Do not use the known-broken `get_pdb_info`
-tool.
-
-When MCP is unavailable, state that the bundled persistent REST adapters will
-be used. Do not claim MCP usage when it was not callable.
-
-## Prepare and pause
-
-For the default name-only request, run:
-
-```text
-PYTHON <skill-root>/scripts/pipeline.py --config CONFIG prepare
-  --protein PROTEIN
-  --ligand LIGAND
-```
-
-The pipeline creates the run directory under `paths.output_root` in
-`config.yaml`. Pass `--output-root DIR` when the user specifies another location.
-
-The command normalizes the identities, selects and downloads structures,
-prepares receptor and ligand, builds the box, writes `run_status.json`, and
-prints a `DOCKING CONFIRMATION` block. If protein identity is ambiguous, present
-the candidates and wait for a gene selection.
-
-Use optional overrides only when evidence or the user supplies them:
-
-- `--pdb-id ID` or `--protein-pdb FILE`
-- `--ligand-sdf FILE` or `--smiles TEXT`
-- `--chain CHAIN`
-- `--center X Y Z --size SX SY SZ`
-- `--redock`
-
-Stop after preparation and wait for explicit approval.
-
-## Execute after approval
-
-After the user approves the exact confirmation block, run:
-
-```text
-PYTHON <skill-root>/scripts/pipeline.py execute
-  --run-dir RUN_DIR
-  --confirm
-```
-
-The command performs repeated Vina runs, global pose ranking, optional
-redocking, PLIP analysis, PLIP-native PyMOL rendering, strict
-fallback rendering when required, structured packaging, and validation.
-
-Each stage records one of `PENDING`, `RUNNING`, `AWAITING_CONFIRMATION`,
-`SUCCESS`, `FAILED`, or `SKIPPED`. A downstream failure must not replace a
-previous stage's successful status or artifacts.
-
-## Inspect or validate
-
-```text
-PYTHON <skill-root>/scripts/pipeline.py status --run-dir RUN_DIR
-PYTHON <skill-root>/scripts/pipeline.py validate --run-dir RUN_DIR
-```
-
-Require non-empty docking artifacts, `interaction_summary.txt`,
-`interaction_master.json`, PML, and PSE. Reopen the PSE and require exactly
-four named objects, the requested dash settings, and saved distance endpoints
-that match the PLIP report. Water bridges have two line segments per interaction.
-
-To reorganize trusted local results already completed, use
-`scripts/repackage.py OLD_RUN [OLD_RUN ...]`. This writes a new result directory
-under `paths.output_root` (or `--output-root`), reuses Vina and PLIP results,
-and leaves the original directory intact.
-
-## References
-
-- Read [references/environment-windows.md](references/environment-windows.md)
-  for Windows, PowerShell, Git Bash, and path rules.
-- Read [references/selection-and-validation.md](references/selection-and-validation.md)
-  for structure ranking, box evidence, redocking, and interpretation limits.
-- Read [references/workflow-commands.md](references/workflow-commands.md) for
-  CLI details and compatibility entry points.
-- Read [references/outputs.md](references/outputs.md) for the result contract
-  and interaction schema.
-
-## Completion report
-
-Report the resolved identities, PDB selection evidence, binding-site source,
-Vina parameters and scores, optional redocking status, PLIP counts, native or
-fallback visualization source, per-stage status, validation result, and final
-output path. Do not infer experimental affinity, efficacy, selectivity, or
-mechanism from a docking score.
+On a new machine configure actual absolute output paths before running. Explicit
+user-specified paths take precedence. PPI also supports `EASY_PPI_OUTPUT_ROOT`
+and `EASY_PPI_CONFIG`; an invalid default must fail without falling back to
+project-local `ppi_results/`. Use named partner/date directories for final
+outputs, `easy_PPI/benchmarks` for benchmarks and `easy_PPI/_archive` for trials;
+these are organization conventions, selected via explicit output arguments.
+See [result storage](references/result-storage.md).
