@@ -1,0 +1,4 @@
+.githooks/* text eol=lf
+tools/*.py text eol=lf
+tests/test_repository_guard.py text eol=lf
+.github/workflows/*.yml text eol=lf

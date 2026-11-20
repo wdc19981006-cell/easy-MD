@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+guard_python=$(git config --local --get easyMD.guardPython) || {
+    echo 'Install hooks with your configured Python and tools/install_hooks.py' >&2
+    exit 2
+}
+guard_script="$(git rev-parse --show-toplevel)/tools/repository_guard.py"
+if command -v cygpath >/dev/null 2>&1; then
+    guard_python=$(cygpath -u "$guard_python")
+    guard_script=$(cygpath -am "$guard_script")
+fi
+exec "$guard_python" "$guard_script"
